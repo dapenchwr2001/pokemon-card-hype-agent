@@ -1,0 +1,20 @@
+[project]
+name = "pokemon-card-hype-agent"
+version = "0.1.0"
+description = "An AI agent that tracks Pokémon TCG card hype, powered by Claude."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=1.11,<2",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+hype = "hype_agent.agent:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["hype_agent"]
