@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Watchlist: {len(wl['cards'])} cards, {len(wl.get('candidates', []))} discovery candidates")
 
     with storage.connect() as conn:
-        budget = tools._x_daily_cap() - storage.usage_today(conn, tools.X_PROVIDER)
+        budget = max(0, tools._x_daily_cap() - storage.usage_today(conn, tools.X_PROVIDER))
         print(f"X budget for this run: {budget} tweets")
 
         last = storage.get_meta(conn, "last_discovery")
@@ -256,6 +256,12 @@ def main(argv: list[str] | None = None) -> None:
               f"{stats['skipped_for_budget']} card-days left for a later run")
         print(f"Prices: saved {collect_prices(conn, wl)} priced printings")
         print(f"X tweets used today: {storage.usage_today(conn, tools.X_PROVIDER)}")
+
+    board = json.loads(tools.hype_leaderboard.call({"period": "day"}))
+    if "cards" in board:
+        print(f"Top cards on {board['window']['end']} (UTC), by unique authors:")
+        for i, c in enumerate(board["cards"], 1):
+            print(f"  {i}. {c['subject']}: ~{c['est_unique_authors']:.0f} people, ~{c['est_posts']:.0f} posts")
 
 
 if __name__ == "__main__":
