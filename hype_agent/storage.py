@@ -41,6 +41,22 @@ CREATE TABLE IF NOT EXISTS social_daily (
     engagement INTEGER NOT NULL,
     PRIMARY KEY (date, platform, subject)
 );
+CREATE TABLE IF NOT EXISTS social_estimates (
+    date TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    sampled INTEGER NOT NULL,
+    capped INTEGER NOT NULL,
+    est_posts REAL NOT NULL,
+    est_unique_authors REAL NOT NULL,
+    engagement INTEGER NOT NULL,
+    top_author_posts INTEGER NOT NULL,
+    PRIMARY KEY (date, platform, subject)
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 CREATE TABLE IF NOT EXISTS api_usage (
     date TEXT NOT NULL,
     provider TEXT NOT NULL,
@@ -67,7 +83,8 @@ def connect():
 
 
 def normalize_subject(subject: str) -> str:
-    return " ".join(subject.lower().split())
+    # Quotes are X/Reddit phrase syntax, not part of the subject: '"Umbreon ex"' == 'Umbreon ex'.
+    return " ".join(subject.replace('"', " ").lower().split())
 
 
 def _today() -> str:
@@ -150,3 +167,58 @@ def add_usage(conn: sqlite3.Connection, provider: str, units: int) -> None:
            ON CONFLICT (date, provider) DO UPDATE SET units = units + excluded.units""",
         (_today(), provider, units),
     )
+
+
+def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (key, value))
+
+
+def save_estimate(conn: sqlite3.Connection, day: str, platform: str, subject: str, **fields) -> None:
+    """Save one full day's measured volume for a watchlist subject (see collect.py for how it's estimated)."""
+    conn.execute(
+        "INSERT OR REPLACE INTO social_estimates VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (day, platform, normalize_subject(subject), fields["sampled"], int(fields["capped"]),
+         fields["est_posts"], fields["est_unique_authors"], fields["engagement"], fields["top_author_posts"]),
+    )
+
+
+def estimated_days(conn: sqlite3.Connection, platform: str, subject: str) -> set[str]:
+    rows = conn.execute(
+        "SELECT date FROM social_estimates WHERE platform = ? AND subject = ?",
+        (platform, normalize_subject(subject)),
+    )
+    return {r["date"] for r in rows}
+
+
+def latest_estimate_date(conn: sqlite3.Connection, platform: str) -> str | None:
+    row = conn.execute("SELECT MAX(date) AS d FROM social_estimates WHERE platform = ?", (platform,)).fetchone()
+    return row["d"]
+
+
+def estimate_totals(conn: sqlite3.Connection, platform: str, start: str, end: str) -> dict[str, dict]:
+    """Per-subject totals of daily estimates for dates in [start, end]."""
+    rows = conn.execute(
+        """SELECT subject, COUNT(*) AS days, SUM(sampled) AS sampled, SUM(capped) AS capped_days,
+                  SUM(est_posts) AS est_posts, SUM(est_unique_authors) AS est_unique_authors,
+                  SUM(engagement) AS engagement, MAX(top_author_posts) AS top_author_posts
+           FROM social_estimates WHERE platform = ? AND date BETWEEN ? AND ? GROUP BY subject""",
+        (platform, start, end),
+    )
+    return {r["subject"]: dict(r) for r in rows}
+
+
+def latest_prices(conn: sqlite3.Connection, card_name: str, limit: int = 3) -> list[dict]:
+    """Latest market prices of the priciest printings with this exact card name (one row per printing)."""
+    rows = conn.execute(
+        """SELECT p.date, p.card_id, p.set_name, p.variant, MAX(p.market) AS market FROM price_snapshots p
+           WHERE lower(p.card_name) = lower(?) AND p.market IS NOT NULL
+             AND p.date = (SELECT MAX(date) FROM price_snapshots q WHERE q.card_id = p.card_id)
+           GROUP BY p.card_id ORDER BY market DESC LIMIT ?""",
+        (card_name, limit),
+    )
+    return [dict(r) for r in rows]

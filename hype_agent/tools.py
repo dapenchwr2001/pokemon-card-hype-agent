@@ -3,7 +3,8 @@
 import json
 import os
 import statistics
-from datetime import date, datetime, timezone
+import time
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from anthropic import beta_tool
@@ -26,6 +27,17 @@ def _tcg_headers() -> dict[str, str]:
     return headers
 
 
+def tcg_get(path: str, params: dict, attempts: int = 6) -> dict:
+    """GET from the Pokémon TCG API, retrying its frequent transient 5xx errors."""
+    for attempt in range(attempts):
+        resp = httpx.get(f"{POKEMON_TCG_API}/{path}", params=params, headers=_tcg_headers(), timeout=60.0)
+        if resp.status_code < 500 or attempt == attempts - 1:
+            resp.raise_for_status()
+            return resp.json()
+        time.sleep(2 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
 @beta_tool
 def search_cards(query: str, limit: int = 10) -> str:
     """Search Pokémon TCG cards and return their current TCGplayer market prices.
@@ -35,15 +47,9 @@ def search_cards(query: str, limit: int = 10) -> str:
         limit: Maximum number of cards to return (1-50).
     """
     limit = max(1, min(limit, 50))
-    resp = httpx.get(
-        f"{POKEMON_TCG_API}/cards",
-        params={"q": query, "pageSize": limit, "orderBy": "-set.releaseDate"},
-        headers=_tcg_headers(),
-        timeout=TIMEOUT,
-    )
-    resp.raise_for_status()
+    body = tcg_get("cards", {"q": query, "pageSize": limit, "orderBy": "-set.releaseDate"})
     cards = []
-    for card in resp.json().get("data", []):
+    for card in body.get("data", []):
         tcgplayer = card.get("tcgplayer", {})
         cards.append(
             {
@@ -124,6 +130,55 @@ def _parse_x_date(value: str | None) -> datetime | None:
     return None
 
 
+def tweet_engagement(t: dict) -> int:
+    return sum(t.get(k) or 0 for k in ("likeCount", "retweetCount", "replyCount", "quoteCount"))
+
+
+def tweet_record(t: dict) -> dict:
+    """The fields storage.record_posts keeps for a tweet."""
+    return {
+        "id": t.get("id"),
+        "author": (t.get("author") or {}).get("userName"),
+        "author_followers": (t.get("author") or {}).get("followers"),
+        "engagement": tweet_engagement(t),
+        "created_date": (_parse_x_date(t.get("createdAt")) or datetime.now(timezone.utc)).date().isoformat(),
+    }
+
+
+def fetch_x(conn, key: str, query: str, max_tweets: int, sort: str = "Latest") -> tuple[list[dict], bool]:
+    """Page through an X search until max_tweets. Returns (tweets, more_available).
+
+    Every page is billed to today's usage as soon as it arrives, so a crash can't hide spend.
+    """
+    tweets: dict[str, dict] = {}
+    cursor = ""
+    more = False
+    while len(tweets) < max_tweets:
+        resp = httpx.get(
+            TWITTERAPI_SEARCH,
+            params={"query": query, "queryType": sort, "cursor": cursor},
+            headers={"X-API-Key": key, "User-Agent": USER_AGENT},
+            timeout=TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        page = data.get("tweets") or []
+        storage.add_usage(conn, X_PROVIDER, len(page))
+        conn.commit()
+        before = len(tweets)
+        for t in page:
+            tweets.setdefault(str(t.get("id")), t)
+        more = bool(data.get("has_next_page") and data.get("next_cursor"))
+        # Stop when there are no more pages or a page brings nothing new (repeated cursor).
+        if len(tweets) == before:
+            more = False
+        if not more:
+            break
+        cursor = data["next_cursor"]
+    found = list(tweets.values())
+    return found[:max_tweets], more or len(found) > max_tweets
+
+
 def _summarize_tweets(tweets: list[dict]) -> dict:
     now = datetime.now(timezone.utc)
     authors: dict[str, dict] = {}
@@ -136,10 +191,7 @@ def _summarize_tweets(tweets: list[dict]) -> dict:
         if created and (now - created).days < 90:
             new_accounts += 1
 
-    def engagement(t: dict) -> int:
-        return sum(t.get(k) or 0 for k in ("likeCount", "retweetCount", "replyCount", "quoteCount"))
-
-    top = sorted(tweets, key=engagement, reverse=True)[:5]
+    top = sorted(tweets, key=tweet_engagement, reverse=True)[:5]
     followers = [a.get("followers") or 0 for a in authors.values()]
     return {
         "tweets": len(tweets),
@@ -189,44 +241,8 @@ def x_buzz(query: str, max_tweets: int = 40, sort: str = "Latest") -> str:
         if remaining <= 0:
             return json.dumps({"error": f"Daily X tweet cap of {_x_daily_cap()} reached; try again tomorrow."})
 
-        tweets: dict[str, dict] = {}
-        cursor = ""
-        while len(tweets) < min(max_tweets, remaining):
-            resp = httpx.get(
-                TWITTERAPI_SEARCH,
-                params={"query": f"{query} -filter:retweets", "queryType": sort, "cursor": cursor},
-                headers={"X-API-Key": key, "User-Agent": USER_AGENT},
-                timeout=TIMEOUT,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            page = data.get("tweets") or []
-            storage.add_usage(conn, X_PROVIDER, len(page))
-            conn.commit()
-            before = len(tweets)
-            for t in page:
-                tweets.setdefault(str(t.get("id")), t)
-            # Stop when there are no more pages or a page brings nothing new (repeated cursor).
-            if not data.get("has_next_page") or not data.get("next_cursor") or len(tweets) == before:
-                break
-            cursor = data["next_cursor"]
-
-        found = list(tweets.values())[:max_tweets]
-        storage.record_posts(
-            conn,
-            "x",
-            query,
-            [
-                {
-                    "id": t.get("id"),
-                    "author": (t.get("author") or {}).get("userName"),
-                    "author_followers": (t.get("author") or {}).get("followers"),
-                    "engagement": sum(t.get(k) or 0 for k in ("likeCount", "retweetCount", "replyCount", "quoteCount")),
-                    "created_date": (_parse_x_date(t.get("createdAt")) or datetime.now(timezone.utc)).date().isoformat(),
-                }
-                for t in found
-            ],
-        )
+        found, _ = fetch_x(conn, key, f"{query} -filter:retweets", min(max_tweets, remaining), sort)
+        storage.record_posts(conn, "x", query, [tweet_record(t) for t in found])
         result = _summarize_tweets(found)
         result["daily_history"] = storage.social_history(conn, query)
         result["tweets_used_today"] = storage.usage_today(conn, X_PROVIDER)
@@ -256,4 +272,83 @@ def hype_history(subject: str, card_name: str = "", days: int = 30) -> str:
         )
 
 
-ALL_TOOLS = [search_cards, reddit_buzz, x_buzz, hype_history]
+def _leaderboard_rows(totals: dict, previous: dict, prev_days: int, days: int) -> list[dict]:
+    rows = []
+    for subject, t in totals.items():
+        prev = previous.get(subject)
+        # Compare like with like: the previous window's average per day, scaled to this window's length.
+        enough = prev and prev["days"] >= max(1, prev_days // 2)
+        baseline = prev["est_unique_authors"] / prev["days"] * days if enough else None
+        rows.append(
+            {
+                "subject": subject,
+                "est_posts": round(t["est_posts"], 1),
+                "est_unique_authors": round(t["est_unique_authors"], 1),
+                "tweets_sampled": t["sampled"],
+                "days_hitting_sample_cap": t["capped_days"],
+                "sampled_engagement": t["engagement"],
+                "top_author_share_of_sample": round(t["top_author_posts"] / t["sampled"], 2) if t["sampled"] else 0,
+                "previous_est_unique_authors": round(baseline, 1) if baseline is not None else None,
+                "change_pct": round((t["est_unique_authors"] - baseline) / max(baseline, 1) * 100)
+                if baseline is not None else None,
+            }
+        )
+    return rows
+
+
+@beta_tool
+def hype_leaderboard(period: str = "day", sort: str = "volume", limit: int = 5) -> str:
+    """Rank watchlist cards by how much people posted about them on X, from the daily collection job.
+
+    Use this for broad questions like "hottest cards today", "top 5 this week" or "what's rising".
+    Data covers only cards on the watchlist and only full UTC days already collected.
+    Volumes on busy days are estimated from a sample (see est_posts / days_hitting_sample_cap).
+
+    Args:
+        period: 'day' for the latest collected day, or 'week' for the last 7 collected days.
+        sort: 'volume' for the most-discussed cards (by estimated unique authors), 'rising' for the biggest
+            increase in unique authors vs. the previous period (the 7 days before, for 'day').
+        limit: How many cards to return (1-20).
+    """
+    limit = max(1, min(limit, 20))
+    days = 7 if period.lower() == "week" else 1
+    with storage.connect() as conn:
+        latest = storage.latest_estimate_date(conn, "x")
+        if not latest:
+            return json.dumps({"error": "No watchlist data collected yet; the daily collection job has not run."})
+        end = date.fromisoformat(latest)
+        start = end - timedelta(days=days - 1)
+        # 'day' compares with the 7 days before it; 'week' with the week before it.
+        prev_days = 7
+        prev_end = start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=prev_days - 1)
+        totals = storage.estimate_totals(conn, "x", start.isoformat(), end.isoformat())
+        previous = storage.estimate_totals(conn, "x", prev_start.isoformat(), prev_end.isoformat())
+        rows = _leaderboard_rows(totals, previous, prev_days, days)
+        if sort.lower() == "rising":
+            # Require several different people so one account posting a lot, or a jump from 1 to 3, can't top it.
+            rows = [r for r in rows if r["change_pct"] is not None and r["est_unique_authors"] >= 5 * days]
+            rows.sort(key=lambda r: r["change_pct"], reverse=True)
+        else:
+            rows.sort(key=lambda r: r["est_unique_authors"], reverse=True)
+        rows = rows[:limit]
+        for r in rows:
+            r["priciest_printings"] = storage.latest_prices(conn, r["subject"])
+        days_collected = conn.execute(
+            "SELECT COUNT(DISTINCT date) FROM social_estimates WHERE platform = 'x'"
+        ).fetchone()[0]
+    return json.dumps(
+        {
+            "window": {"start": start.isoformat(), "end": end.isoformat(), "timezone": "UTC"},
+            "compared_with": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
+            "sort": "rising" if sort.lower() == "rising" else "volume (estimated unique authors)",
+            "watchlist_subjects_with_data": len(totals),
+            "days_collected_total": days_collected,
+            "cards": rows,
+            "note": "Only watchlist cards are ranked. est_* values on capped days are extrapolated from the "
+            "newest tweets' posting rate. Giveaway tweets and retweets are excluded at search time.",
+        }
+    )
+
+
+ALL_TOOLS = [search_cards, reddit_buzz, x_buzz, hype_history, hype_leaderboard]
