@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 *.egg-info/
 .env
+
+# Local history database (the scheduled run will manage its own copy)
+hype.db
