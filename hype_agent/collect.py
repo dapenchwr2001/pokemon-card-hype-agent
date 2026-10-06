@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 
@@ -23,6 +24,7 @@ DEFAULT_PER_DAY_CAP = 40  # TwitterAPI.io returns 20 tweets per page, so keep th
 DISCOVERY_EVERY_DAYS = 7
 DISCOVERY_TWEETS = 200
 DISCOVERY_MIN_AUTHORS = 3
+PRICE_TIME_LIMIT_S = 240  # The TCG API is often slow or failing; prices are best effort, so cap the time spent.
 
 # Always tracked, whatever the recent sets are.
 EVERGREEN = ["Charizard ex", "Umbreon ex", "Pikachu ex", "Mew ex", "Gengar ex", "Rayquaza ex", "Sylveon ex", "Lugia ex"]
@@ -195,10 +197,14 @@ def collect_prices(conn, wl: dict) -> int:
     Returns how many printings had a price; brand-new sets often have none yet.
     """
     saved = 0
+    deadline = time.monotonic() + PRICE_TIME_LIMIT_S
     for c in wl["cards"]:
+        if time.monotonic() > deadline:
+            print(f"  ! price time limit reached; skipped the rest from {c['name']} on")
+            break
         try:
             body = tools.tcg_get("cards", {"q": f'name:"{c["name"]}"', "pageSize": 50,
-                                           "select": "id,name,set,tcgplayer"})
+                                           "select": "id,name,set,tcgplayer"}, attempts=2, timeout=20.0)
         except Exception as e:
             print(f"  ! price lookup failed for {c['name']}: {e}")
             continue

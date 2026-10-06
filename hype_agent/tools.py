@@ -27,10 +27,10 @@ def _tcg_headers() -> dict[str, str]:
     return headers
 
 
-def tcg_get(path: str, params: dict, attempts: int = 6) -> dict:
+def tcg_get(path: str, params: dict, attempts: int = 6, timeout: float = 60.0) -> dict:
     """GET from the Pokémon TCG API, retrying its frequent transient 5xx errors."""
     for attempt in range(attempts):
-        resp = httpx.get(f"{POKEMON_TCG_API}/{path}", params=params, headers=_tcg_headers(), timeout=60.0)
+        resp = httpx.get(f"{POKEMON_TCG_API}/{path}", params=params, headers=_tcg_headers(), timeout=timeout)
         if resp.status_code < 500 or attempt == attempts - 1:
             resp.raise_for_status()
             return resp.json()
