@@ -49,12 +49,14 @@ python -m hype_agent.collect          # or: hype-collect
 `hype_leaderboard` ranks cards by estimated unique authors for the latest collected day or the last
 7 days, or by growth vs. the previous period (`sort="rising"`).
 
-#### Scheduled run
+#### Running it
 
-`scripts/daily_collect.sh` is what the scheduled run executes. History and the watchlist live on the
-`hype-data` branch, not with the code; the script restores them, runs the collection, and pushes them
-back as a single fresh commit (the database holds the history, so old copies aren't kept). To read the
-latest data locally:
+For now the collection is run by hand: from a checkout with push access, run
+`./scripts/daily_collect.sh` (set `PYTHON=.venv/bin/python` if you use a venv). Run it any time after
+midnight UTC; days you skip are filled in on the next run, up to `--backfill-days` (default 7) back.
+History and the watchlist live on the `hype-data` branch, not with the code; the script restores them,
+runs the collection, and pushes them back as a single fresh commit (the database holds the history, so
+old copies aren't kept). To read the latest data locally:
 
 ```bash
 git fetch origin hype-data && git worktree add ../hype-data origin/hype-data
