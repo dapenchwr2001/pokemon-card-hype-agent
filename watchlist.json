@@ -1,0 +1,376 @@
+{
+  "about": "Cards the daily job tracks. Add {\"name\": \"...\"} entries to cards to track more; remove entries to stop. candidates are names the weekly discovery search looks for.",
+  "seeded_from_sets": [
+    "30th Celebration",
+    "Pitch Black",
+    "Chaos Rising",
+    "Perfect Order"
+  ],
+  "cards": [
+    {
+      "name": "Charizard ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Umbreon ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Pikachu ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mew ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Gengar ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Rayquaza ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Sylveon ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Lugia ex",
+      "source": "evergreen",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Darkrai ex",
+      "card_ids": [
+        "me5-48",
+        "me5-101",
+        "me5-116",
+        "me5-120"
+      ],
+      "set": "Pitch Black",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Greninja ex",
+      "card_ids": [
+        "me4-22",
+        "me4-100",
+        "me4-116",
+        "me4-122"
+      ],
+      "set": "Chaos Rising",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Zygarde ex",
+      "card_ids": [
+        "me3-47",
+        "me3-104",
+        "me3-120",
+        "me3-124"
+      ],
+      "set": "Perfect Order",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Fuecoco ex",
+      "card_ids": [
+        "me55-15",
+        "me55-147"
+      ],
+      "set": "30th Celebration",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Greninja ex",
+      "card_ids": [
+        "me55-21",
+        "me55-148"
+      ],
+      "set": "30th Celebration",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mewtwo ex",
+      "card_ids": [
+        "me55-64",
+        "me55-151"
+      ],
+      "set": "30th Celebration",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Jirachi ex",
+      "card_ids": [
+        "me55-102",
+        "me55-155"
+      ],
+      "set": "30th Celebration",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Salamence ex",
+      "card_ids": [
+        "me55-109",
+        "me55-156"
+      ],
+      "set": "30th Celebration",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Zeraora ex",
+      "card_ids": [
+        "me5-27",
+        "me5-98",
+        "me5-114"
+      ],
+      "set": "Pitch Black",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Chandelure ex",
+      "card_ids": [
+        "me5-38",
+        "me5-99",
+        "me5-115"
+      ],
+      "set": "Pitch Black",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Morpeko ex",
+      "card_ids": [
+        "me5-55",
+        "me5-102",
+        "me5-117"
+      ],
+      "set": "Pitch Black",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Floette ex",
+      "card_ids": [
+        "me4-35",
+        "me4-101",
+        "me4-117"
+      ],
+      "set": "Chaos Rising",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Dragalge ex",
+      "card_ids": [
+        "me4-65",
+        "me4-104",
+        "me4-118"
+      ],
+      "set": "Chaos Rising",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Cinccino ex",
+      "card_ids": [
+        "me4-73",
+        "me4-105",
+        "me4-119"
+      ],
+      "set": "Chaos Rising",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Starmie ex",
+      "card_ids": [
+        "me3-21",
+        "me3-102",
+        "me3-118"
+      ],
+      "set": "Perfect Order",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Mega Clefable ex",
+      "card_ids": [
+        "me3-31",
+        "me3-103",
+        "me3-119"
+      ],
+      "set": "Perfect Order",
+      "source": "seed",
+      "added": "2026-10-06"
+    },
+    {
+      "name": "Meowth ex",
+      "card_ids": [
+        "me3-62",
+        "me3-107",
+        "me3-121"
+      ],
+      "set": "Perfect Order",
+      "source": "seed",
+      "added": "2026-10-06"
+    }
+  ],
+  "candidates": [
+    {
+      "name": "Lurantis ex",
+      "card_ids": [
+        "me5-4",
+        "me5-96"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Wailord ex",
+      "card_ids": [
+        "me5-16",
+        "me5-97"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Rampardos ex",
+      "card_ids": [
+        "me5-45",
+        "me5-100"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Mega Excadrill ex",
+      "card_ids": [
+        "me5-65",
+        "me5-103"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Beedrill ex",
+      "card_ids": [
+        "me4-3",
+        "me4-98"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Mega Pyroar ex",
+      "card_ids": [
+        "me4-15",
+        "me4-99"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Gourgeist ex",
+      "card_ids": [
+        "me4-41",
+        "me4-102"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Cobalion ex",
+      "card_ids": [
+        "me4-64",
+        "me4-103"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Salazzle ex",
+      "card_ids": [
+        "me3-16",
+        "me3-101"
+      ],
+      "set": "Perfect Order"
+    },
+    {
+      "name": "Decidueye ex",
+      "card_ids": [
+        "me3-12",
+        "me3-100"
+      ],
+      "set": "Perfect Order"
+    },
+    {
+      "name": "Yveltal ex",
+      "card_ids": [
+        "me3-53",
+        "me3-105"
+      ],
+      "set": "Perfect Order"
+    },
+    {
+      "name": "Mega Skarmory ex",
+      "card_ids": [
+        "me3-55",
+        "me3-106"
+      ],
+      "set": "Perfect Order"
+    },
+    {
+      "name": "Espeon ex",
+      "card_ids": [
+        "me55-70"
+      ],
+      "set": "30th Celebration"
+    },
+    {
+      "name": "Mega Delphox ex",
+      "card_ids": [
+        "me5-8"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Mega Slowbro ex",
+      "card_ids": [
+        "me5-31"
+      ],
+      "set": "Pitch Black"
+    },
+    {
+      "name": "Krookodile ex",
+      "card_ids": [
+        "me4-55"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Mega Gallade ex",
+      "card_ids": [
+        "me4-48"
+      ],
+      "set": "Chaos Rising"
+    },
+    {
+      "name": "Lapras ex",
+      "card_ids": [
+        "me3-22"
+      ],
+      "set": "Perfect Order"
+    }
+  ]
+}
