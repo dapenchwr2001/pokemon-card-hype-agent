@@ -15,7 +15,7 @@ POKEMON_TCG_API = "https://api.pokemontcg.io/v2"
 REDDIT_SEARCH = "https://www.reddit.com/r/{subreddit}/search.json"
 TWITTERAPI_SEARCH = "https://api.twitterapi.io/twitter/tweet/advanced_search"
 X_PROVIDER = "twitterapi.io"
-DEFAULT_X_DAILY_TWEET_CAP = 1500
+DEFAULT_X_DAILY_TWEET_CAP = 3000
 USER_AGENT = "pokemon-card-hype-agent/0.1"
 TIMEOUT = 15.0
 
@@ -297,7 +297,7 @@ def _leaderboard_rows(totals: dict, previous: dict, prev_days: int, days: int) -
 
 
 @beta_tool
-def hype_leaderboard(period: str = "day", sort: str = "volume", limit: int = 5) -> str:
+def hype_leaderboard(period: str = "day", sort: str = "volume", limit: int = 5, kind: str = "card") -> str:
     """Rank watchlist cards by how much people posted about them on X, from the daily collection job.
 
     Use this for broad questions like "hottest cards today", "top 5 this week" or "what's rising".
@@ -309,6 +309,9 @@ def hype_leaderboard(period: str = "day", sort: str = "volume", limit: int = 5) 
         sort: 'volume' for the most-discussed cards (by estimated unique authors), 'rising' for the biggest
             increase in unique authors vs. the previous period (the 7 days before, for 'day').
         limit: How many cards to return (1-20).
+        kind: 'card' (default; specific "<name> ex" cards), 'all', 'species' (any card of an older or less obvious
+            Pokémon, e.g. Aerodactyl) or 'promo' (Black Star, Pokémon Center, prerelease, McDonald's, PSA 10
+            searches). Use 'species' with sort='rising' to find breakout Pokémon outside the usual few.
     """
     limit = max(1, min(limit, 20))
     days = 7 if period.lower() == "week" else 1
@@ -325,9 +328,18 @@ def hype_leaderboard(period: str = "day", sort: str = "volume", limit: int = 5) 
         totals = storage.estimate_totals(conn, "x", start.isoformat(), end.isoformat())
         previous = storage.estimate_totals(conn, "x", prev_start.isoformat(), prev_end.isoformat())
         rows = _leaderboard_rows(totals, previous, prev_days, days)
+        kind = kind.lower()
+        if kind != "all":
+            from hype_agent import collect  # Imported here: collect imports this module.
+
+            kinds = {storage.normalize_subject(c["name"]): c.get("kind", "card")
+                     for c in (collect.load_watchlist() or {}).get("cards", [])}
+            rows = [r for r in rows if kinds.get(r["subject"], "card") == kind]
         if sort.lower() == "rising":
             # Require several different people so one account posting a lot, or a jump from 1 to 3, can't top it.
-            rows = [r for r in rows if r["change_pct"] is not None and r["est_unique_authors"] >= 5 * days]
+            # Species and promo searches are one page a day, so a smaller floor (3 people/day) still means a crowd.
+            floor = (5 if kind in ("all", "card") else 3) * days
+            rows = [r for r in rows if r["change_pct"] is not None and r["est_unique_authors"] >= floor]
             rows.sort(key=lambda r: r["change_pct"], reverse=True)
         else:
             rows.sort(key=lambda r: r["est_unique_authors"], reverse=True)

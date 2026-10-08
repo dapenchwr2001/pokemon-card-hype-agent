@@ -29,6 +29,25 @@ PRICE_TIME_LIMIT_S = 240  # The TCG API is often slow or failing; prices are bes
 # Always tracked, whatever the recent sets are.
 EVERGREEN = ["Charizard ex", "Umbreon ex", "Pikachu ex", "Mew ex", "Gengar ex", "Rayquaza ex", "Sylveon ex", "Lugia ex"]
 SEED_SETS = 4
+
+# Species-level and promo searches catch what "<name> ex" misses: older Pokémon, non-ex printings, vintage,
+# promos. Species need card words next to the name or every game/anime tweet would count. Edit freely.
+EXTRA_CAP = 20  # One page per day; these are cheap probes, not full counts.
+CARD_WORDS = '("pokemon card" OR "pokemon tcg" OR #PokemonTCG OR PSA OR pulled OR binder)'
+SPECIES = [
+    "Aerodactyl", "Beedrill", "Kabutops", "Omastar", "Dragonite", "Gyarados", "Alakazam", "Machamp",
+    "Arcanine", "Ninetales", "Scyther", "Pinsir", "Kangaskhan", "Lapras", "Snorlax", "Ditto", "Venusaur",
+    "Blastoise", "Typhlosion", "Feraligatr", "Tyranitar", "Scizor", "Heracross", "Espeon", "Ampharos",
+    "Steelix", "Ho-Oh", "Suicune", "Entei", "Raikou", "Celebi", "Blaziken", "Gardevoir", "Absol",
+    "Metagross", "Flygon", "Milotic", "Lucario", "Garchomp", "Togekiss",
+]
+PROMO_SEARCHES = {
+    "Black Star Promo": '("black star promo" OR "black star promos" OR "SVP promo" OR "SWSH promo")',
+    "Pokemon Center Promo": '("pokemon center promo" OR "pokemon center exclusive" OR "pokecenter promo")',
+    "Prerelease Promo": '("prerelease promo" OR "pre-release promo" OR "prerelease stamp")',
+    "McDonald's Promo": '("mcdonald\'s pokemon" OR "mcdonalds pokemon" OR "mcdonald\'s promo")',
+    "PSA 10 Pokemon": '("PSA 10" pokemon (card OR slab))',
+}
 SEED_CARDS = 27
 # Best first. Seeding ranks by rarity because brand-new sets often have no prices yet.
 RARITY_RANK = [
@@ -99,13 +118,32 @@ def seed_watchlist() -> dict:
             # Plain names like "Lapras" would match every Lapras card ever printed.
             candidates.append(item)
         taken.add(e["name"].lower())
+    cards += extra_entries()
     return {
-        "about": "Cards the daily job tracks. Add {\"name\": \"...\"} entries to cards to track more; "
+        "about": "Cards the daily job tracks. Add {\"name\": \"...\"} entries to cards to track more "
+        "(optional: \"query\" for a custom search, \"kind\": species/promo/card, \"cap\" tweets per day); "
         "remove entries to stop. candidates are names the weekly discovery search looks for.",
         "seeded_from_sets": [s["name"] for s in sets],
         "cards": cards,
         "candidates": candidates,
     }
+
+
+def extra_entries() -> list[dict]:
+    today = _today_utc().isoformat()
+    out = [{"name": n, "kind": "species", "source": "species", "added": today, "cap": EXTRA_CAP,
+            "query": f'"{n}" {CARD_WORDS}'} for n in SPECIES]
+    out += [{"name": n, "kind": "promo", "source": "promo", "added": today, "cap": EXTRA_CAP, "query": q}
+            for n, q in PROMO_SEARCHES.items()]
+    return out
+
+
+def add_extras(wl: dict) -> int:
+    """Add any missing species/promo entries to an existing watchlist. Returns how many were added."""
+    have = {c["name"].lower() for c in wl["cards"]}
+    new = [e for e in extra_entries() if e["name"].lower() not in have]
+    wl["cards"] += new
+    return len(new)
 
 
 def _name_pattern(name: str) -> re.Pattern:
@@ -169,15 +207,17 @@ def collect_x(conn, key: str, wl: dict, backfill_days: int, per_day_cap: int, bu
         for card in wl["cards"]:
             if day.isoformat() in done[card["name"]]:
                 continue
-            if budget < per_day_cap:
+            cap = card.get("cap", per_day_cap)
+            if budget < cap:
                 stats["skipped_for_budget"] += 1
                 continue
             nxt = day + timedelta(days=1)
             # Unix-time bounds: TwitterAPI.io doesn't treat since:/until: dates as UTC days.
-            query = (f'"{card["name"]}" -giveaway -filter:retweets '
+            search = card.get("query") or f'"{card["name"]}"'
+            query = (f'{search} -giveaway -filter:retweets '
                      f"since_time:{_utc_midnight(day)} until_time:{_utc_midnight(nxt)}")
             used_before = storage.usage_today(conn, tools.X_PROVIDER)
-            tweets, more = tools.fetch_x(conn, key, query, per_day_cap, "Latest")
+            tweets, more = tools.fetch_x(conn, key, query, cap, "Latest")
             used = storage.usage_today(conn, tools.X_PROVIDER) - used_before
             budget -= used
             stats["tweets"] += used
@@ -199,6 +239,8 @@ def collect_prices(conn, wl: dict) -> int:
     saved = 0
     deadline = time.monotonic() + PRICE_TIME_LIMIT_S
     for c in wl["cards"]:
+        if c.get("kind", "card") != "card":
+            continue
         if time.monotonic() > deadline:
             print(f"  ! price time limit reached; skipped the rest from {c['name']} on")
             break
@@ -242,6 +284,10 @@ def main(argv: list[str] | None = None) -> None:
             wl["cards"] += [c for c in old["cards"] if c.get("source") not in ("seed", "evergreen")
                             and c["name"].lower() not in names]
         save_watchlist(wl)
+    added = add_extras(wl)
+    if added:
+        save_watchlist(wl)
+        print(f"Added {added} species/promo searches to the watchlist")
     print(f"Watchlist: {len(wl['cards'])} cards, {len(wl.get('candidates', []))} discovery candidates")
 
     with storage.connect() as conn:

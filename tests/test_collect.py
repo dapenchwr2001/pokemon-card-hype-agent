@@ -145,3 +145,39 @@ def test_quoted_and_plain_subjects_share_history(monkeypatch):
     tools.x_buzz.call({"query": '"Umbreon ex"'})
     out = json.loads(tools.hype_history.call({"subject": "Umbreon ex"}))
     assert out["social"][0]["posts"] == 1
+
+
+def test_species_and_promo_entries_use_custom_queries_and_caps(monkeypatch):
+    y1 = TODAY - timedelta(days=1)
+    wl = {"cards": [{"name": "Umbreon ex"}], "candidates": []}
+    assert collect.add_extras(wl) == len(collect.SPECIES) + len(collect.PROMO_SEARCHES)
+    assert collect.add_extras(wl) == 0  # Idempotent.
+
+    calls = []
+
+    def fake_get(url, params=None, **kw):
+        calls.append(params["query"])
+        return httpx.Response(200, json={"tweets": [tweet("1", "u", at(y1, 12))], "has_next_page": False},
+                              request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(tools.httpx, "get", fake_get)
+    wl["cards"] = [wl["cards"][0]] + [c for c in wl["cards"] if c["name"] in ("Aerodactyl", "Black Star Promo")]
+    with storage.connect() as conn:
+        collect.collect_x(conn, "k", wl, backfill_days=1, per_day_cap=40, budget=1000)
+    assert any(q.startswith('"Umbreon ex" -giveaway') for q in calls)
+    assert any(q.startswith('"Aerodactyl" ("pokemon card"') for q in calls)
+    assert any(q.startswith('("black star promo"') for q in calls)
+
+
+def test_leaderboard_kind_filter(monkeypatch):
+    y1 = TODAY - timedelta(days=1)
+    wl = {"cards": [{"name": "Umbreon ex"}, {"name": "Aerodactyl", "kind": "species"}], "candidates": []}
+    collect.save_watchlist(wl)
+    with storage.connect() as conn:
+        for name in ("Umbreon ex", "Aerodactyl"):
+            storage.save_estimate(conn, y1.isoformat(), "x", name, sampled=3, capped=False, est_posts=3.0,
+                                  est_unique_authors=3.0, engagement=1, top_author_posts=1)
+    names = lambda kind: [c["subject"] for c in json.loads(tools.hype_leaderboard.call({"kind": kind}))["cards"]]
+    assert names("card") == ["umbreon ex"]
+    assert names("species") == ["aerodactyl"]
+    assert set(names("all")) == {"umbreon ex", "aerodactyl"}

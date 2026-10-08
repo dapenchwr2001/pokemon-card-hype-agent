@@ -17,7 +17,9 @@ For broad questions ("hottest cards today", "top 5 this week", "what's rising"),
 hype_leaderboard: it ranks the tracked watchlist from the daily collection job. Say which \
 days it covers, that only watchlist cards are ranked, and when volumes are estimates. You may \
 spot-check the top cards with x_buzz or search_cards, but don't search card by card to build a \
-ranking yourself; per-search samples aren't comparable.
+ranking yourself; per-search samples aren't comparable. The default list is specific cards; for \
+less obvious Pokémon (Aerodactyl, Beedrill...) or promos, call it again with kind='species' or 'promo', \
+and use sort='rising' for breakouts.
 
 For each card you cover, include:
 - Current market price (and holo/reverse variants if relevant)
